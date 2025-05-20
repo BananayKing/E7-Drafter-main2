@@ -2,7 +2,7 @@
 # uvicorn recommender.main:app --host 0.0.0.0 --port 8000
 # python -m uvicorn recommender.main:app --host 0.0.0.0 --port 8000
 from .database import get_db , engine
-from fastapi import FastAPI, Request, Response, HTTPException, Depends, Cookie
+from fastapi import FastAPI, Request, Response, HTTPException, Depends, Cookie, status , Header
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, EmailStr
 from typing import List, Optional
@@ -97,7 +97,7 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
 def verify_token(token: str):
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        email: str = payload.get("email")
+        email: str = payload.get("eamail")
         if email is None:
             raise HTTPException(status_code=401, detail="Invalid token: missing email")
         return email
@@ -160,10 +160,11 @@ def login(
 
     db: Session = Depends(get_db),
 ):
+    
     db_user = db.query(User).filter(User.email == username).first()
     if not db_user or not verify_password(password, db_user.hashed_password):
         raise HTTPException(status_code=400, detail="Incorrect email or password")
-    
+
     access_token = create_access_token(data={"email": db_user.email})
     response.set_cookie(key="access_token", value=access_token, httponly=True, samesite="none"  ,   secure=True)
     return {"message": "Login successful"}
@@ -176,6 +177,26 @@ async def get_current_user(request: Request , access_token: Optional[str] = Cook
     email = verify_token(access_token)
 
     return {"email": email}
+@app.post("/auth/delete")
+async def delete_account(
+    response: Response,
+    current_user: User = Depends(get_current_user_from_token),
+    db: Session = Depends(get_db),
+):
+
+    db.delete(current_user)
+    db.commit()
+
+    response.delete_cookie(
+        key="access_token",
+        path="/",
+        secure=True,
+        samesite="none"
+    )
+
+    return {"detail": "Account deleted successfully"}
+
+
 
 @app.post("/auth/logout")
 async def logout(response: Response):

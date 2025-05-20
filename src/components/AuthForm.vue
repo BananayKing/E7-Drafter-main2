@@ -17,16 +17,20 @@
   You are logged in as {{ username }}
 </p>
       <button @click="handleLogout">Sign Out</button>
+      <button @click="handleDeleteAccount" :disabled="loading">
+    {{ loading ? "Deleting..." : "Delete Account" }}
+  </button>
     </div>
+
   </div>
 </template>
-
 <script>
 import { API_BASE_URL } from './config';
 
 export default {
   data() {
     return {
+      loading: false,
       username: '',
       password: '',
       isLogin: true,
@@ -47,6 +51,57 @@ export default {
     toggleMode() {
       this.isLogin = !this.isLogin;
     },
+    async handleDeleteAccount() {
+      if (!confirm("Are you sure you want to delete your account? This action is irreversible.")) {
+        return;
+      }
+
+      this.loading = true;
+
+      try {
+      
+
+        const response = await fetch(API_BASE_URL + '/auth/delete', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+        });
+
+if (!response.ok) {
+  let data;
+  try {
+    data = await response.json();
+  } catch {
+    data = {};
+  }
+  alert(`Error deleting account: ${data.detail || response.statusText}`);
+  this.loading = false;
+  return;
+}
+
+// For success, try parsing JSON but fallback if empty
+let successData;
+try {
+  successData = await response.json();
+} catch {
+  successData = null;
+}
+
+alert(successData?.detail || "Account deleted successfully.");
+window.location.reload();
+      } finally {
+        this.loading = false;
+      }
+    },
+
+    getCookie(name) {
+      const value = `; ${document.cookie}`;
+      const parts = value.split(`; ${name}=`);
+      if (parts.length === 2) return parts.pop().split(';').shift();
+      return null;
+    },
 
     async checkAuthStatus() {
       try {
@@ -65,89 +120,82 @@ export default {
       }
     },
 
-async handleSubmit() {
-  const endpoint = this.isLogin ? '/auth/jwt/login' : '/auth/register';
+    async handleSubmit() {
+      const endpoint = this.isLogin ? '/auth/jwt/login' : '/auth/register';
 
-  try {
-    let response;
+      try {
+        let response;
 
-    if (this.isLogin) {
-      // Login request
-      const formData = new URLSearchParams();
-      formData.append('username', this.username);
-      formData.append('password', this.password);
+        if (this.isLogin) {
+          const formData = new URLSearchParams();
+          formData.append('username', this.username);
+          formData.append('password', this.password);
 
-      response = await fetch(API_BASE_URL + endpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: formData,
-        credentials: 'include',
-      });
+          response = await fetch(API_BASE_URL + endpoint, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: formData,
+            credentials: 'include',
+          });
 
-    } else {
-      // Registration: Validate password first
-      const password = this.password;
-      const minLength = 8;
-      const hasNumberOrSpecial = /[\d\W]/.test(password);
+        } else {
+          const password = this.password;
+          const minLength = 8;
+          const hasNumberOrSpecial = /[\d\W]/.test(password);
 
-      if (password.length < minLength) {
-        alert('Password must be at least 8 characters long.');
-        return;
+          if (password.length < minLength) {
+            alert('Password must be at least 8 characters long.');
+            return;
+          }
+
+          if (!hasNumberOrSpecial) {
+            alert('Password must include at least one number or special character.');
+            return;
+          }
+
+          const payload = { email: this.username, password: this.password };
+          response = await fetch(API_BASE_URL + endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+            credentials: 'include',
+          });
+
+          if (!response.ok) {
+            const error = await response.json();
+            alert(`Error: ${error.message || response.statusText}`);
+            return;
+          }
+
+          const loginFormData = new URLSearchParams();
+          loginFormData.append('username', this.username);
+          loginFormData.append('password', this.password);
+
+          response = await fetch(API_BASE_URL + '/auth/jwt/login', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: loginFormData,
+            credentials: 'include',
+          });
+        }
+
+        if (!response.ok) {
+          alert(`Error: Incorrect username or password`);
+          return;
+        }
+
+        this.isLoggedIn = true;
+        this.password = '';
+        if (!this.isLogin) this.isLogin = true;
+
+      } catch (err) {
+        alert('Network or server error: ' + err.message);
       }
-
-      if (!hasNumberOrSpecial) {
-        alert('Password must include at least one number or special character.');
-        return;
-      }
-
-      // Registration request
-      const payload = { email: this.username, password: this.password };
-      response = await fetch(API_BASE_URL + endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-        credentials: 'include',
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        alert(`Error: ${error.message || response.statusText}`);
-        return;
-      }
-
-      // After successful registration, immediately log in
-      const loginFormData = new URLSearchParams();
-      loginFormData.append('username', this.username);
-      loginFormData.append('password', this.password);
-
-      response = await fetch(API_BASE_URL + '/auth/jwt/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: loginFormData,
-        credentials: 'include',
-      });
-    }
-
-    if (!response.ok) {
-      const error = await response.json();
-      alert(`Error: Incorrect username or password`);
-      return;
-    }
-
-    // Success - update UI and reset password field
-    this.isLoggedIn = true;
-    this.password = '';
-    if (!this.isLogin) this.isLogin = true;
-
-  } catch (err) {
-    alert('Network or server error: ' + err.message);
-  }
-},
-
+    },
 
     async handleLogout() {
       try {
