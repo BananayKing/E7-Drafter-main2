@@ -11,7 +11,6 @@
       <div class="collapse navbar-collapse justify-content-center" id="navbarNav">
         <ul class="navbar-nav">
           <li class="nav-item"><a class="nav-link" href="/">Home</a></li>
-          <li class="nav-item"><a class="nav-link" href="/auth">Login/Signup</a></li>
           <li class="nav-item"><a class="nav-link" href="/selector">Character Selector</a></li>
           <li class="nav-item"><a class="nav-link" href="#">About</a></li>
         </ul>
@@ -77,7 +76,7 @@ export default {
     }
   },
   goToAuth() {
-    window.location.href = '/authForm';  // Redirect to login/signup page
+    window.location.href = '/auth';  // Redirect to login/signup page
   },
   }
 };

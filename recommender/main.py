@@ -1,6 +1,6 @@
 # app/main.py
 # uvicorn recommender.main:app --host 0.0.0.0 --port 8000
-
+# python -m uvicorn recommender.main:app --host 0.0.0.0 --port 8000
 from .database import get_db , engine
 from fastapi import FastAPI, Request, Response, HTTPException, Depends, Cookie
 from fastapi.middleware.cors import CORSMiddleware
@@ -65,7 +65,7 @@ class Pick(BaseModel):
 
 class RecommendRequest(BaseModel):
     picks: List[Pick]
-
+    selected_characters: Optional[List[str]] = None
 # --- Models for auth ---
 
 class UserCreate(BaseModel):
@@ -147,7 +147,8 @@ def register(user: UserCreate, db: Session = Depends(get_db)):
     db.add(db_user)
     db.commit()
     db.refresh(db_user)
-
+    
+    
     return {"message": "User registered"}
 
 
@@ -188,18 +189,17 @@ async def logout(response: Response):
 
 @app.post("/recommend")
 async def recommend_team(req: RecommendRequest):
-    logger.debug(f"Received request: {req.dict()}")  # Log the received data
-
+    logger.debug(f"Received request: {req.dict()}")
 
     picks = [p.dict() for p in req.picks]
+    selected_characters = req.selected_characters
+
     try:
-        top_5 = recommender.recommend(picks)
-        return {
-            "recommendations": top_5
-        }
+        top_5 = recommender.recommend(picks, selected_characters=selected_characters)
+        return { "recommendations": top_5 }
     except Exception as e:
         logger.error(f"Error during recommendation: {str(e)}")
-        return {"error": "An internal error occurred", "details": str(e)}
+        return { "error": "An internal error occurred", "details": str(e) }
 # --- Root endpoint ---
 
 @app.get("/")

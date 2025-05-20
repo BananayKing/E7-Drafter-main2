@@ -1,6 +1,6 @@
 <template>
 
-  <div class="draft-container">
+  <div class="draft-container "    tabindex="0">
     <!-- Draft Left Side (Flipped) -->
 
     <div class="draft-side left-draft">
@@ -8,10 +8,10 @@
         <h4>My Team</h4>
       </div>
           <label class="first-pick-label">
-      <input type="checkbox" v-model="firstPickSide" true-value="left" false-value="" />
+      <input type="checkbox" v-model="firstPickSide" true-value="left" false-value=""   />
       First Pick 
     </label>
-      <div v-for="n in 5" :key="'left-' + n" class="draft-placeholder" @click="selectDraftCharacter(n, 'left')">
+      <div v-for="n in 5" :tabindex="0"            @keydown.enter.prevent="selectDraftCharacter(n, 'left')" key="'left-' + n" class="draft-placeholder" @click="selectDraftCharacter(n, 'left')">
         <div v-if="draftLeft[n]" class="drafted-character">
           <img 
             :src="'src/data/face/' + draftLeft[n].code + '_l.png'" 
@@ -146,7 +146,10 @@
             v-for="character in filteredCharacters"
             :key="character.code"
             class="character-card"
+            tabindex="0"
+            role="button"
             @click="selectCharacter(character)"
+            @keydown.enter.prevent="selectCharacter(character)"
             :class="{ selected: selectedCharacterId === character.code }"
           >
             <img :src="'src/data/face/' + character.code + '_s.png'" :alt="character.name" />
@@ -157,16 +160,17 @@
     </div>
 
     <!-- Draft Right Side (Normal) -->
-    <div class="draft-side right-draft">
+    <div class="draft-side right-draft "    tabindex="0">
+      
                <div class = "team-label">
         <h4>Enemy Team</h4>
           </div>
       <label class="first-pick-label">
 
-      <input type="checkbox" v-model="firstPickSide" true-value="right" false-value="" />
+      <input type="checkbox" v-model="firstPickSide" true-value="right" false-value=""/>
       First Pick
     </label>
-      <div v-for="n in 5" :key="'right-' + n" class="draft-placeholder" @click="selectDraftCharacter(n, 'right')">
+      <div v-for="n in 5" :tabindex="0"             @keydown.enter.prevent="selectDraftCharacter(n, 'right')"key="'right-' + n" class="draft-placeholder" @click="selectDraftCharacter(n, 'right')">
         <div v-if="draftRight[n]" class="drafted-character">
           <img 
             :src="'src/data/face/' + draftRight[n].code + '_l.png'" 
@@ -246,80 +250,82 @@ filteredCharacters() {
     this.clearFilters();
     return;
   }
-  try {
-    const response = await fetch(API_BASE_URL + '/user/characters', { credentials: 'include' });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-    const data = await response.json();
-    const ownedCodes = data.characters;
-    this.characters = this.allCharacters.filter(char => ownedCodes.includes(char.code));
-    this.showOnlyOwned = true;
-    this.clearFilters();
-  } catch (error) {
-    alert('Failed to load owned characters: ' + error.message);
-  }
 },
-    getDraftState() {
-
-     const firstPick = this.firstPickSide; // "left" or "right"
-      const pickMap = firstPick === "left"
-        ? {
-            left: { 1: 1, 2: 4, 3: 5, 4: 8, 5: 9 },
-            right: { 1: 2, 2: 3, 3: 6, 4: 7, 5: 10 }
-          }
-        : {
-            right: { 1: 1, 2: 4, 3: 5, 4: 8, 5: 9 },
-            left: { 1: 2, 2: 3, 3: 6, 4: 7, 5: 10 }
-          };
-
-      const draft = [];
-
-      const buildEntry = (side, slot, char) => {
-        const teamName = side === "left" ? "My Team" : "Enemy Team";
-        return {
-          pick_order: pickMap[side][slot],
-          Team: teamName,
-          Hero: char.code,
-          first_pick: side === firstPick ? 1 : 0
-        };
+async getDraftState() {
+  const firstPick = this.firstPickSide;
+  const pickMap = firstPick === "left"
+    ? {
+        left: { 1: 1, 2: 4, 3: 5, 4: 8, 5: 9 },
+        right: { 1: 2, 2: 3, 3: 6, 4: 7, 5: 10 }
+      }
+    : {
+        right: { 1: 1, 2: 4, 3: 5, 4: 8, 5: 9 },
+        left: { 1: 2, 2: 3, 3: 6, 4: 7, 5: 10 }
       };
 
-      for (const [slotStr, char] of Object.entries(this.draftLeft)) {
-        const slot = parseInt(slotStr);
-        if (char) draft.push(buildEntry("left", slot, char));
-      }
+  const draft = [];
+  const buildEntry = (side, slot, char) => ({
+    pick_order: pickMap[side][slot],
+    Team: side === "left" ? "My Team" : "Enemy Team",
+    Hero: char.code,
+    first_pick: side === firstPick ? 1 : 0
+  });
 
-      for (const [slotStr, char] of Object.entries(this.draftRight)) {
-        const slot = parseInt(slotStr);
-        if (char) draft.push(buildEntry("right", slot, char));
-      }
+  for (const [slotStr, char] of Object.entries(this.draftLeft)) {
+    const slot = parseInt(slotStr);
+    if (char) draft.push(buildEntry("left", slot, char));
+  }
 
-      const sortedDraft = draft.sort((a, b) => a.pick_order - b.pick_order);
-  
-      const payload = {
-      picks: sortedDraft
-      };
-      
-  fetch(API_BASE_URL + '/recommend', {
-  method: 'POST',
-  headers: {
-    'Content-Type': 'application/json',
-  },
-  body: JSON.stringify(payload),
-  
+  for (const [slotStr, char] of Object.entries(this.draftRight)) {
+    const slot = parseInt(slotStr);
+    if (char) draft.push(buildEntry("right", slot, char));
+  }
 
-})
-.then(res => res.json())
-.then(data => {
-this.recommendations = data.recommendations;  })
-.catch(err => {
-    alert("API call failed: " + err);
-      })},
+  const sortedDraft = draft.sort((a, b) => a.pick_order - b.pick_order);
+
+  try {
+  const res = await fetch(API_BASE_URL + "/user/characters", {
+    credentials: "include"
+  });
+  if (!res.ok) return;
+
+  const data = await res.json();
+  const selectable_characters = data.characters;
+  if (!Array.isArray(selectable_characters)) {
+    console.error("Invalid characters response", data);
+    return;
+  }
+
+  const payload = {
+    picks: sortedDraft,
+    ...(selectable_characters.length > 0 && { selected_characters: selectable_characters })
+  };
+  console.log("Sending payload to /recommend:", payload); // <-- log payload here
+  const recRes = await fetch(API_BASE_URL + '/recommend', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!recRes.ok) throw new Error(`HTTP ${recRes.status}`);
+  const recData = await recRes.json();
+  this.recommendations = recData.recommendations;
+
+} catch (err) {
+  console.error("API call failed:", err);
+  alert("API call failed: " + err.message);
+}
+
+},
+
 
   selectCharacter(character) {
       this.selectedCharacterId =
         this.selectedCharacterId === character.code ? null : character.code;
     },
+
 
     selectDraftCharacter(slot, side) {
       if (!this.selectedCharacterId) return;

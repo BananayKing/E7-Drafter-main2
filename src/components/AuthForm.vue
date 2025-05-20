@@ -23,6 +23,7 @@
 
 <script>
 import { API_BASE_URL } from './config';
+
 export default {
   data() {
     return {
@@ -46,6 +47,7 @@ export default {
     toggleMode() {
       this.isLogin = !this.isLogin;
     },
+
     async checkAuthStatus() {
       try {
         const response = await fetch(API_BASE_URL + '/auth/me', {
@@ -62,12 +64,15 @@ export default {
         this.isLoggedIn = false;
       }
     },
- async handleSubmit() {
+
+async handleSubmit() {
   const endpoint = this.isLogin ? '/auth/jwt/login' : '/auth/register';
 
   try {
     let response;
+
     if (this.isLogin) {
+      // Login request
       const formData = new URLSearchParams();
       formData.append('username', this.username);
       formData.append('password', this.password);
@@ -80,31 +85,70 @@ export default {
         body: formData,
         credentials: 'include',
       });
-    } else {
-      // Registration still uses JSON
-const payload = { email: this.username, password: this.password };
-response = await fetch(API_BASE_URL + endpoint, {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify(payload),
-  credentials: 'include',
-});
 
+    } else {
+      // Registration: Validate password first
+      const password = this.password;
+      const minLength = 8;
+      const hasNumberOrSpecial = /[\d\W]/.test(password);
+
+      if (password.length < minLength) {
+        alert('Password must be at least 8 characters long.');
+        return;
+      }
+
+      if (!hasNumberOrSpecial) {
+        alert('Password must include at least one number or special character.');
+        return;
+      }
+
+      // Registration request
+      const payload = { email: this.username, password: this.password };
+      response = await fetch(API_BASE_URL + endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        alert(`Error: ${error.message || response.statusText}`);
+        return;
+      }
+
+      // After successful registration, immediately log in
+      const loginFormData = new URLSearchParams();
+      loginFormData.append('username', this.username);
+      loginFormData.append('password', this.password);
+
+      response = await fetch(API_BASE_URL + '/auth/jwt/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: loginFormData,
+        credentials: 'include',
+      });
     }
 
     if (!response.ok) {
-      const data = await response.json();
-      alert(data.detail || 'Error');
-    } else {
-      this.isLoggedIn = true;
-      this.password = '';
-      if (!this.isLogin) this.isLogin = true;
+      const error = await response.json();
+      alert(`Error: Incorrect username or password`);
+      return;
     }
-  } catch (error) {
-    console.error(error);
-    alert('Failed to connect to server');
+
+    // Success - update UI and reset password field
+    this.isLoggedIn = true;
+    this.password = '';
+    if (!this.isLogin) this.isLogin = true;
+
+  } catch (err) {
+    alert('Network or server error: ' + err.message);
   }
 },
+
+
     async handleLogout() {
       try {
         const response = await fetch(API_BASE_URL + '/auth/logout', {
@@ -127,6 +171,7 @@ response = await fetch(API_BASE_URL + endpoint, {
   },
 };
 </script>
+
 
 
 <style scoped>

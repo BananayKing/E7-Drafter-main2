@@ -91,48 +91,43 @@ class DraftRecommender:
                 scores.append(win_rate * weight * 100)
         return sum(scores) / len(scores) if scores else 10.0
 
-    def recommend(self, picks, my_team_name='My Team'):
+    def recommend(self, picks, selected_characters=None, my_team_name='My Team'):
         if not picks:
-        # No picks made yet — return top 5 heroes with pick number 1 assumption
             results = []
             for _, row in self.df.iterrows():
-                if not row['slot_winrates']:
+                if selected_characters and row['heroid'] not in selected_characters:
                     continue
-                # Assume all heroes are considered for pick number 1
                 slot_score = self._get_slot_winrate(row, next_pick=1, first_pick="First")
-                syn_score = 0
-                cnt_score = 0
                 score = slot_score
                 results.append({
                     'heroid': row['heroid'],
                     'hero_name': self.code_to_name.get(row['heroid'], 'Unknown'),
                     'score': round(score),
                     'slot_score': round(slot_score),
-                    'syn_score': round(syn_score),
-                    'cnt_score': round(cnt_score)
+                    'syn_score': 0,
+                    'cnt_score': 0
                 })
             top_5 = sorted(results, key=lambda x: x['score'], reverse=True)[:5]
             return top_5
+
         picked_orders = {p['pick_order'] for p in picks}
         next_pick = min(o for o in range(1, max(picked_orders) + 6) if o not in picked_orders)
-        for pick in picks:
-            if pick.get('first_pick') == 1 and pick['Team'] == "My Team":
-                first_pick = "First"
-            else:
-                first_pick = "Second"
+
+        first_pick = "First" if any(p['first_pick'] == 1 and p['Team'] == my_team_name for p in picks) else "Second"
         my_picks = [p['Hero'] for p in picks if p['Team'] == my_team_name]
         enemy_picks = [p['Hero'] for p in picks if p['Team'] != my_team_name]
 
         taken = set(my_picks + enemy_picks)
         candidates = self.df[~self.df['heroid'].isin(taken)]
+        if selected_characters:
+            candidates = candidates[candidates['heroid'].isin(selected_characters)]
 
         results = []
         for _, row in candidates.iterrows():
-    
-            slot_score = self._get_slot_winrate(row, next_pick ,first_pick )
+            slot_score = self._get_slot_winrate(row, next_pick, first_pick)
             syn_score = self._get_synergy_score(row, my_picks)
             cnt_score = self._get_counter_score(row, enemy_picks)
-            score = 0.5 * (syn_score *slot_score) + 0.5 * (cnt_score*slot_score)
+            score = 0.5 * (syn_score * slot_score) + 0.5 * (cnt_score * slot_score)
             results.append({
                 'heroid': row['heroid'],
                 'hero_name': self.code_to_name.get(row['heroid'], 'Unknown'),
@@ -142,8 +137,7 @@ class DraftRecommender:
                 'cnt_score': round(cnt_score)
             })
         top_5 = sorted(results, key=lambda x: x['score'], reverse=True)[:5]
-        return top_5 
-
+        return top_5
 if __name__ == '__main__':
     recommender = DraftRecommender(
         '/winrate_data.csv',
