@@ -283,41 +283,52 @@ async getDraftState() {
 
   const sortedDraft = draft.sort((a, b) => a.pick_order - b.pick_order);
 
-  try {
-  const res = await fetch(API_BASE_URL + "/user/characters", {
-    credentials: "include"
-  });
-  if (!res.ok) return;
+  let selectable_characters = [];
 
-  const data = await res.json();
-  const selectable_characters = data.characters;
-  if (!Array.isArray(selectable_characters)) {
-    console.error("Invalid characters response", data);
-    return;
+  try {
+    const res = await fetch(API_BASE_URL + "/user/characters", {
+      credentials: "include"
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data.characters)) {
+        selectable_characters = data.characters;
+      } else {
+        console.warn("Invalid characters response:", data);
+      }
+    } else {
+      console.warn("Failed to load /user/characters:", res.status);
+    }
+  } catch (err) {
+    console.warn("Error fetching /user/characters:", err);
   }
 
-  const payload = {
-    picks: sortedDraft,
-    ...(selectable_characters.length > 0 && { selected_characters: selectable_characters })
-  };
-  console.log("Sending payload to /recommend:", payload); // <-- log payload here
-  const recRes = await fetch(API_BASE_URL + '/recommend', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
+  try {
+    const payload = {
+      picks: sortedDraft,
+      ...(selectable_characters.length > 0 && { selected_characters: selectable_characters })
+    };
 
-  if (!recRes.ok) throw new Error(`HTTP ${recRes.status}`);
-  const recData = await recRes.json();
-  this.recommendations = recData.recommendations;
+    console.log("Sending payload to /recommend:", payload);
 
-} catch (err) {
-  console.error("API call failed:", err);
-  alert("API call failed: " + err.message);
-}
+    const recRes = await fetch(API_BASE_URL + '/recommend', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
 
+    if (!recRes.ok) throw new Error(`HTTP ${recRes.status}`);
+
+    const recData = await recRes.json();
+    this.recommendations = recData.recommendations;
+
+  } catch (err) {
+    console.error("API call to /recommend failed:", err);
+    alert("API call failed: " + err.message);
+  }
 },
 
 

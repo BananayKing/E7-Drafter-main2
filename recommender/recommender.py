@@ -1,7 +1,7 @@
 import ast
 import json
 import pandas as pd
-
+import math
 class DraftRecommender:
     def __init__(self, csv_path, json_path):
         # Load and parse data
@@ -56,12 +56,13 @@ class DraftRecommender:
                 win_rate = entry.get('final_winrate', 0) / 100.0 *10
                 pick_rate = entry.get('pickrate', 0) / 100.0
                 games_played = entry.get('games_played', 1)
-                weight = max(games_played, 1) * pick_rate 
-                # Return the weighted winrate
-                
-                return (win_rate**4) * weight /1000
 
-        return 0.0  # No matching entry found
+                # Return the weighted winrate
+                    # Early picks: stronger influence (but no ^7 absurdity)
+                weight = games_played * pick_rate 
+                return (win_rate**7) * weight /100
+
+        return 1  # No matching entry found
 
 
 
@@ -74,9 +75,9 @@ class DraftRecommender:
                 win_rate = entry['winrate'] / 100.0 *10
                 pick_rate = entry['pickrate'] / 100.0
                 games_played = entry.get('games_played', 1)
-                weight = pick_rate * (min(games_played, 10000) / 100)
+                weight = pick_rate * math.log(games_played)
                 scores.append(win_rate * weight * 100)
-        return sum(scores) / len(scores) if scores else 10.0
+        return sum(scores) / len(scores) if scores else 0
 
     def _get_counter_score(self, hero_row, enemy_picks):
         if not enemy_picks:
@@ -87,9 +88,9 @@ class DraftRecommender:
                 win_rate = entry['winrate'] / 100.0 *10
                 pick_rate = entry['pickrate'] / 100.0
                 games_played = entry.get('games_played', 1)
-                weight = pick_rate * (min(games_played, 10000) / 100)
+                weight = pick_rate * math.log(games_played)
                 scores.append(win_rate * weight * 100)
-        return sum(scores) / len(scores) if scores else 10.0
+        return sum(scores) / len(scores) if scores else 0
 
     def recommend(self, picks, selected_characters=None, my_team_name='My Team'):
         if not picks:
@@ -127,7 +128,7 @@ class DraftRecommender:
             slot_score = self._get_slot_winrate(row, next_pick, first_pick)
             syn_score = self._get_synergy_score(row, my_picks)
             cnt_score = self._get_counter_score(row, enemy_picks)
-            score = 0.5 * (syn_score * slot_score) + 0.5 * (cnt_score * slot_score)
+            score = 0.33 * (syn_score * slot_score) + 0.66 * (cnt_score * slot_score)
             results.append({
                 'heroid': row['heroid'],
                 'hero_name': self.code_to_name.get(row['heroid'], 'Unknown'),
